@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>台灣股市去槓桿壓力儀表板</title>
+<style>
+:root, [data-theme="light"] {
+  --surface-1:#fcfcfb; --page:#f9f9f7;
+  --ink-1:#0b0b0b; --ink-2:#52514e; --ink-3:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --ring:rgba(11,11,11,.10);
+  --s1:#2a78d6; --s2:#1baf7a; --s3:#eda100; --s4:#008300; --s5:#4a3aa7; --s6:#e34948;
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --crit:#d03b3b;
+  --wash:rgba(11,11,11,.045);
+}
+[data-theme="dark"] {
+  --surface-1:#1a1a19; --page:#0d0d0d;
+  --ink-1:#ffffff; --ink-2:#c3c2b7; --ink-3:#898781;
+  --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,.10);
+  --s1:#3987e5; --s2:#199e70; --s3:#c98500; --s4:#008300; --s5:#9085e9; --s6:#e66767;
+  --wash:rgba(255,255,255,.06);
+}
+* { box-sizing:border-box; }
+html,body { margin:0; padding:0; background:var(--page); color:var(--ink-1);
+  font-family:system-ui,-apple-system,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;
+  font-size:14px; line-height:1.55; }
+.wrap { max-width:1180px; margin:0 auto; padding:20px 16px 56px; }
+header.top { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 14px; margin-bottom:6px; }
+header.top h1 { font-size:20px; font-weight:700; margin:0; }
+.sub { color:var(--ink-3); font-size:12.5px; }
+.spacer { flex:1; }
+button.ghost { background:none; border:1px solid var(--ring); border-radius:8px; color:var(--ink-2);
+  padding:4px 10px; font-size:12px; cursor:pointer; white-space:nowrap; flex:none; }
+button.ghost:hover { background:var(--wash); }
+.hero { display:grid; grid-template-columns:290px 1fr; gap:14px; margin:14px 0; }
+@media (max-width:860px){ .hero { grid-template-columns:1fr; } }
+.card { background:var(--surface-1); border:1px solid var(--ring); border-radius:14px; padding:16px 18px; }
+.gauge-card { display:flex; flex-direction:column; align-items:center; }
+.tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
+.tile .lbl { color:var(--ink-2); font-size:12.5px; }
+.tile .val { font-size:26px; font-weight:600; margin-top:2px; }
+.tile .delta { font-size:12px; margin-top:2px; color:var(--ink-3); }
+.delta .up-bad { color:var(--crit); } .delta .down-good { color:var(--s4); }
+.chips { display:flex; flex-wrap:wrap; gap:8px; margin:2px 0 14px; }
+.chip { display:flex; align-items:center; gap:7px; border:1px solid var(--ring); border-radius:999px;
+  padding:5px 12px; font-size:12.5px; color:var(--ink-2); background:var(--surface-1); }
+.chip b { color:var(--ink-1); font-weight:600; }
+.dot { width:9px; height:9px; border-radius:50%; flex:none; }
+.filters { display:flex; align-items:center; gap:6px; margin:4px 0 12px; flex-wrap:wrap; }
+.filters .fl { color:var(--ink-3); font-size:12px; margin-right:2px; }
+.filters button { background:none; border:1px solid var(--ring); color:var(--ink-2); border-radius:8px;
+  padding:4px 12px; font-size:12.5px; cursor:pointer; }
+.filters button.on { background:var(--wash); color:var(--ink-1); font-weight:600; border-color:var(--axis); }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media (max-width:960px){ .grid { grid-template-columns:1fr; } }
+.card h3 { margin:0 0 2px; font-size:14.5px; font-weight:700; display:flex; align-items:center; gap:8px; }
+.card .desc { color:var(--ink-3); font-size:12px; margin-bottom:8px; }
+.card .hd { display:flex; align-items:flex-start; }
+.card .hd .spacer { flex:1; }
+.legend { display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:6px; font-size:12px; color:var(--ink-2); }
+.legend .key { display:flex; align-items:center; gap:6px; }
+.key .sw { width:10px; height:10px; border-radius:3px; }
+.key .ln { width:14px; height:2px; border-radius:1px; }
+.fn { color:var(--ink-3); font-size:11.5px; margin-top:8px; }
+svg text { font-family:inherit; }
+.tick { fill:var(--ink-3); font-size:10.5px; font-variant-numeric:tabular-nums; }
+.dlabel { fill:var(--ink-2); font-size:11px; font-weight:600; }
+.tooltip { position:fixed; pointer-events:none; background:var(--surface-1); border:1px solid var(--ring);
+  border-radius:10px; padding:8px 11px; font-size:12px; box-shadow:0 4px 14px rgba(0,0,0,.14);
+  z-index:50; display:none; max-width:260px; }
+.tooltip .tt-d { color:var(--ink-3); margin-bottom:3px; font-size:11.5px; }
+.tooltip .row { display:flex; align-items:center; gap:6px; margin-top:2px; }
+.tooltip .row .v { margin-left:auto; font-weight:600; font-variant-numeric:tabular-nums; padding-left:10px; }
+.tblwrap { max-height:300px; overflow:auto; margin-top:6px; border:1px solid var(--ring); border-radius:8px; }
+table.tv { border-collapse:collapse; width:100%; font-size:12px; }
+table.tv th, table.tv td { padding:4px 9px; text-align:right; border-bottom:1px solid var(--grid);
+  font-variant-numeric:tabular-nums; white-space:nowrap; }
+table.tv th:first-child, table.tv td:first-child { text-align:left; position:sticky; left:0; background:var(--surface-1); }
+table.tv thead th { position:sticky; top:0; background:var(--surface-1); color:var(--ink-2); z-index:2; }
+.unwind { margin-top:10px; }
+.unwind .bar { height:10px; border-radius:5px; background:var(--wash); position:relative; overflow:hidden; }
+.unwind .fill { position:absolute; inset:0 auto 0 0; background:var(--s1); border-radius:5px; }
+.unwind .cap { display:flex; justify-content:space-between; font-size:11.5px; color:var(--ink-3); margin-top:4px; }
+.parts .row { display:flex; align-items:center; gap:10px; margin:7px 0; }
+.parts .nm { width:210px; font-size:12px; color:var(--ink-2); flex:none; }
+.parts .bar { flex:1; height:12px; background:var(--wash); border-radius:6px; position:relative; }
+.parts .bf { position:absolute; inset:0 auto 0 0; background:var(--s1); border-radius:6px; }
+.parts .pv { width:70px; text-align:right; font-size:12px; font-variant-numeric:tabular-nums; color:var(--ink-2); flex:none; }
+.pending { border:1px dashed var(--axis); border-radius:10px; padding:12px 14px; color:var(--ink-2); font-size:12.5px; background:var(--wash); }
+.method { font-size:12.5px; color:var(--ink-2); }
+.method h4 { margin:14px 0 4px; font-size:13px; color:var(--ink-1); }
+.method code { background:var(--wash); border-radius:4px; padding:1px 5px; font-size:11.5px; }
+details.how { margin:2px 0 8px; }
+details.how summary { cursor:pointer; font-size:12px; color:var(--s1); user-select:none; list-style:none; }
+details.how summary::before { content:'▸ '; }
+details.how[open] summary::before { content:'▾ '; }
+details.how .hb { margin-top:6px; padding:9px 12px; background:var(--wash); border-radius:9px;
+  font-size:12.5px; color:var(--ink-2); line-height:1.65; }
+#commentary p { margin:7px 0; font-size:13.5px; line-height:1.75; }
+#verdict { margin:4px 0 14px; padding:12px 16px; background:var(--wash); border-radius:11px; border-left:4px solid var(--s1); }
+#verdict:empty { display:none; }
+#verdict .v0 { font-size:11.5px; letter-spacing:.06em; color:var(--ink-3); margin-bottom:4px; }
+#verdict .v1 { font-size:14.5px; font-weight:650; line-height:1.7; }
+#verdict .v2 { font-size:12.5px; color:var(--ink-2); margin-top:6px; line-height:1.65; }
+#commentary .tag { display:inline-block; font-size:11px; color:var(--ink-3); border:1px solid var(--ring);
+  border-radius:5px; padding:0 6px; margin-right:8px; vertical-align:1px; }
+footer { color:var(--ink-3); font-size:11.5px; margin-top:22px; }
+a { color:var(--s1); text-decoration:none; }
+.zone-good { color:var(--good); } .zone-warn { color:var(--warn); }
+.zone-serious { color:var(--serious); } .zone-crit { color:var(--crit); }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <header class="top">
+    <h1>台灣股市去槓桿壓力儀表板</h1>
+    <span class="sub" id="asof"></span>
+    <span class="spacer"></span>
+    <button class="ghost" id="themeBtn">深/淺色</button>
+  </header>
+  <div class="sub" id="genline"></div>
+
+  <div class="hero">
+    <div class="card gauge-card">
+      <h3 style="align-self:flex-start">去槓桿壓力指數</h3>
+      <div id="gauge"></div>
+      <div id="zoneLabel" style="font-size:13px;font-weight:600;margin-top:-6px"></div>
+      <div class="fn" style="text-align:center">0=出清完成 · 100=極端槓桿壓力<br>綜合7項子指標，方法見頁尾</div>
+    </div>
+    <div class="card">
+      <div class="tiles" id="tiles"></div>
+      <div class="chips" id="chips" style="margin-top:14px"></div>
+      <div class="fn">三項關鍵訊號：①技術性賣壓衰竭代理指標（自動判定）②外部催化劑落地（人工旗標）③監管干預力度（人工旗標）——三燈轉綠之前的反彈，多屬技術性反彈。</div>
+    </div>
+  </div>
+
+  <div class="card" id="commentary" style="margin-bottom:14px">
+    <div class="hd"><div><h3>本期解讀</h3><div class="desc">依當期讀數自動生成（定位 → 證據 → 條件），可直接複製使用。</div></div>
+    <div class="spacer"></div><button class="ghost" id="copyComm">複製</button></div>
+    <div id="verdict"></div>
+    <div id="commBody"></div>
+  </div>
+
+  <div class="filters" id="filters"><span class="fl">期間</span></div>
+  <div class="grid" id="cards"></div>
+
+  <div class="card method" style="margin-top:14px">
+    <h3>方法論與數據源</h3>
+    <div id="methodBody"></div>
+  </div>
+  <footer id="foot"></footer>
+</div>
+<div class="tooltip" id="tt"></div>
+
+<script id="pipeline-src" type="application/json">/*__SRC__*/null</script>
+<script>
+const IND = /*__DATA__*/null;
+(function(){
+if(!IND){ document.getElementById('app').innerHTML='<p style="padding:40px">尚無數據 — 請先執行數據管線（fetch_data.py → compute_indicators.py → build_dashboard.py）。</p>'; return; }
+
+/* ---------- helpers ---------- */
+const $ = s=>document.querySelector(s);
+const el=(t,c,h)=>{const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e;};
+const fmtD=d=>d? d.slice(0,4)+'/'+d.slice(4,6).replace('-','')+'/'+d.slice(6,8) : '';
+const fmtDate=d=>d? d.replaceAll('-','').slice(0,4)+'/'+d.replaceAll('-','').slice(4,6)+'/'+d.replaceAll('-','').slice(6,8) : '';
+const fmtN=(v,dp=1)=>v==null?'–':Number(v).toLocaleString('en-US',{minimumFractionDigits:dp,maximumFractionDigits:dp});
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+/* 日期在 IND.dates 內以 YYYY-MM-DD 字串儲存 */
+function fD(d){ if(!d) return ''; const s=d.replaceAll('-',''); return s.slice(0,4)+'/'+s.slice(4,6)+'/'+s.slice(6,8); }
+
+/* theme */
+let theme=(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';
+document.documentElement.setAttribute('data-theme',theme);
+$('#themeBtn').onclick=()=>{theme=theme==='light'?'dark':'light';document.documentElement.setAttribute('data-theme',theme);renderAll();};
+if(matchMedia){ matchMedia('(prefers-color-scheme: dark)').addEventListener('change',e=>{theme=e.matches?'dark':'light';document.documentElement.setAttribute('data-theme',theme);renderAll();}); }
+
+/* ---------- header ---------- */
+$('#asof').textContent='大盤截至 '+fD(IND.asof_market||IND.asof)+'｜融資餘額截至 '+fD(IND.asof_credit||IND.asof)+'（FinMind/證交所 資料）';
+$('#genline').textContent='共 '+IND.n_days_total.toLocaleString()+' 個交易日 · 產出於 '+IND.generated;
+if(IND.sample){ const b=el('div',null,'⚠️ 目前顯示<b>管線測試用合成/樣本數據</b>，數值請勿引用。');
+  b.style.cssText='margin:10px 0 2px;padding:10px 14px;border-radius:10px;font-size:13px;background:rgba(208,59,59,.10);border:1px solid rgba(208,59,59,.35);color:var(--ink-1)';
+  $('#genline').after(b); }
+else if(IND.partial){ const b=el('div',null,
+  '📊 <b>真實數據</b>（FinMind，'+fD(IND.data_from)+' 起，共 '+IND.n_days_total+' 個交易日）。5年滾動百分位需累積更長歷史才會啟用，目前以中性值 50 代入，<b>綜合分數為暫估</b>；其餘讀數（融資餘額、大盤、波動率等）均為真實值。正式部署（GitHub Actions 每日抓取全歷史）後，此提示會隨數據量增加自動消失。');
+  b.style.cssText='margin:10px 0 2px;padding:10px 14px;border-radius:10px;font-size:13px;background:rgba(42,120,214,.08);border:1px solid rgba(42,120,214,.35);color:var(--ink-1)';
+  $('#genline').after(b); }
+
+/* ---------- gauge ---------- */
+function gauge(score,zone){
+  const w=250,h=150,cx=w/2,cy=135,r=100,r2=86;
+  const zones=[[0,25,css('--good')],[25,45,css('--warn')],[45,70,css('--serious')],[70,100,css('--crit')]];
+  const a=v=>Math.PI*(1+v/100);
+  const P=(ang,rad)=>[cx+rad*Math.cos(ang), cy+rad*Math.sin(ang)];
+  let s='<svg width="'+w+'" height="'+h+'" role="img" aria-label="壓力指數 '+score+'">';
+  zones.forEach(([f,t,col])=>{
+    const gap=0.014; const a1=a(f)+(f>0?gap:0), a2=a(t)-(t<100?gap:0);
+    const [x1,y1]=P(a1,r),[x2,y2]=P(a2,r),[x3,y3]=P(a2,r2),[x4,y4]=P(a1,r2);
+    s+='<path d="M'+x1+' '+y1+' A'+r+' '+r+' 0 0 1 '+x2+' '+y2+' L'+x3+' '+y3+' A'+r2+' '+r2+' 0 0 0 '+x4+' '+y4+' Z" fill="'+col+'" opacity="0.9"/>';
+  });
+  const an=a(Math.max(0,Math.min(100,score)));
+  const [nx,ny]=P(an,r2-6);
+  s+='<line x1="'+cx+'" y1="'+cy+'" x2="'+nx+'" y2="'+ny+'" stroke="'+css('--ink-1')+'" stroke-width="2.5" stroke-linecap="round"/>';
+  s+='<circle cx="'+cx+'" cy="'+cy+'" r="5" fill="'+css('--ink-1')+'"/>';
+  s+='<text x="'+cx+'" y="'+(cy-28)+'" text-anchor="middle" style="font-size:44px;font-weight:650" fill="'+css('--ink-1')+'">'+fmtN(score,1)+'</text>';
+  ['0','25','45','70','100'].forEach(v=>{const [tx,ty]=P(a(+v),r+11);
+    s+='<text x="'+tx+'" y="'+(ty+3)+'" text-anchor="middle" class="tick">'+v+'</text>';});
+  s+='</svg>';
+  $('#gauge').innerHTML=s;
+  const zc={high:'zone-crit',mid:'zone-serious',late:'zone-warn',done:'zone-good'}[zone]||'';
+  $('#zoneLabel').innerHTML='<span class="'+zc+'">●</span> '+IND.composite.zone_label;
+}
+
+/* ---------- tiles ---------- */
+function tiles(){
+  const L=IND.latest, E=IND.latest_extra, U=IND.unwind;
+  const t=[
+    {l:'融資餘額',v:fmtN(L.margin_total,0)+' 億元',d:(E.margin_d5_pct==null?'':'5日 '+(E.margin_d5_pct>0?'+':'')+E.margin_d5_pct+'%')+' · 距峰值 '+fmtN(100*(L.margin_total/U.peak-1),1)+'%',bad:E.margin_d5_pct>0},
+    {l:'融資餘額／成交值',v:fmtN(L.margin_turnover_ratio,2)+' 天',d:'5年百分位 '+fmtN(E.pctl.margin_turnover_ratio,0)+' · 估計融資盤消化天數',bad:(E.pctl.margin_turnover_ratio||0)>70},
+    {l:'融資降幅代理（5日均）',v:fmtN(E.margin_drop_ma,2)+'%',d:'百分位 '+fmtN(E.pctl.margin_drop_ma,0)+'（非真實斷頭金額，為代理指標）',bad:(E.pctl.margin_drop_ma||0)>70},
+    {l:'加權指數距52週最高收盤',v:fmtN(E.taiex_dd,1)+'%',d:'52週最高收盤 '+fmtN(E.taiex_hi52,0)+(E.taiex_hi52_date?'（'+fD(E.taiex_hi52_date).slice(5)+'）':'')+' · 現收 '+fmtN(L.taiex_idx,0)+' · 20日波動 '+fmtN(E.rv20,0)+'%',bad:(E.pctl.rv20||0)>70},
+  ];
+  $('#tiles').innerHTML='';
+  t.forEach(x=>{ const d=el('div','tile'); d.append(el('div','lbl',x.l),el('div','val',x.v),el('div','delta',x.d)); $('#tiles').append(d); });
+}
+
+/* ---------- signal chips ---------- */
+function chips(){
+  const box=$('#chips'); box.innerHTML='';
+  const map={green:css('--good'),yellow:css('--warn'),red:css('--crit'),watch:css('--ink-3')};
+  const icon={green:'✓',yellow:'△',red:'✕',watch:'…'};
+  ['s1','s2','s3'].forEach((k,i)=>{
+    const s=IND.signals[k];
+    const c=el('div','chip'); c.title=s.detail;
+    c.innerHTML='<span class="dot" style="background:'+(map[s.status]||css('--ink-3'))+'"></span><b>'+(i+1)+'·'+s.label+'</b><span>'+icon[s.status]+'</span>';
+    box.append(c);
+    const d=el('div','sub'); d.style.cssText='flex-basis:100%;margin:-4px 0 2px 4px;font-size:11.5px;color:var(--ink-3)';
+    d.textContent=s.detail; box.append(d);
+  });
+}
+
+/* ---------- chart engine ---------- */
+const D=IND.dates, S=IND.series;
+const RANGES={'3月':63,'6月':126,'1年':252,'3年':756,'全部':1e9};
+let rangeN=Math.min(126, D.length);
+function sliceIdx(){ const n=D.length; const from=Math.max(0,n-rangeN); return [from,n]; }
+function niceTicks(mn,mx,m=4){ if(mn===mx){mx=mn+1;} const span=mx-mn, step0=span/m,
+  mag=Math.pow(10,Math.floor(Math.log10(step0))), cand=[1,2,2.5,5,10].map(x=>x*mag);
+  const step=cand.find(c=>span/c<=m)||cand[4]; const lo=Math.floor(mn/step)*step, hi=Math.ceil(mx/step)*step;
+  const t=[]; for(let v=lo;v<=hi+1e-9;v+=step)t.push(+v.toFixed(10)); return t; }
+const tt=$('#tt');
+function showTT(x,y,html){ tt.innerHTML=html; tt.style.display='block';
+  const r=tt.getBoundingClientRect(); let px=x+14,py=y+14;
+  if(px+r.width>innerWidth-8)px=x-r.width-14; if(py+r.height>innerHeight-8)py=y-r.height-14;
+  tt.style.left=px+'px'; tt.style.top=py+'px'; }
+function hideTT(){ tt.style.display='none'; }
+
+function chart(host,cfg){
+  host.innerHTML='';
+  const [i0,i1]=sliceIdx();
+  const W=host.clientWidth||520, H=cfg.h||210, pad={l:8,r:8,t:12,b:22};
+  const innerW=W-pad.l-pad.r;
+  const maxPts=Math.max(80,Math.floor(innerW/2.5));
+  const nRaw=i1-i0, stride=Math.max(1,Math.ceil(nRaw/maxPts));
+  const idx=[]; for(let i=i0;i<i1;i+=stride)idx.push(i); if(idx[idx.length-1]!==i1-1)idx.push(i1-1);
+  const rows=idx.map(i=>({d:D[i],vals:cfg.series.map(s=>(s.data||S[s.key])[i])}));
+  let mn=Infinity,mx=-Infinity;
+  rows.forEach(r=>r.vals.forEach(v=>{if(v!=null){mn=Math.min(mn,v);mx=Math.max(mx,v);}}));
+  (cfg.refLines||[]).forEach(r=>{mn=Math.min(mn,r.v);mx=Math.max(mx,r.v);});
+  if(!isFinite(mn)){mn=0;mx=1;}
+  if(cfg.zero&&mn>0)mn=0;
+  const ticks=niceTicks(mn,mx,4); mn=ticks[0]; mx=ticks[ticks.length-1];
+  const tickW=Math.max(...ticks.map(t=>String(cfg.yFmt?cfg.yFmt(t):t).length))*6.6+8;
+  const pl=pad.l+tickW, pw=W-pl-pad.r, ph=H-pad.t-pad.b;
+  const X=i=>pl+pw*(rows.length===1?0.5:i/(rows.length-1));
+  const Y=v=>pad.t+ph*(1-(v-mn)/(mx-mn));
+  const NS='http://www.w3.org/2000/svg';
+  const svg=document.createElementNS(NS,'svg');
+  svg.setAttribute('width',W); svg.setAttribute('height',H); svg.style.display='block';
+  const add=(p,t,at)=>{const e=document.createElementNS(NS,t); for(const k in at)e.setAttribute(k,at[k]); p.appendChild(e); return e;};
+  ticks.forEach(t=>{ add(svg,'line',{x1:pl,x2:W-pad.r,y1:Y(t),y2:Y(t),stroke:css('--grid'),'stroke-width':1});
+    const tx=add(svg,'text',{x:pl-6,y:Y(t)+3.5,'text-anchor':'end','class':'tick'});
+    tx.textContent=cfg.yFmt?cfg.yFmt(t):t; });
+  add(svg,'line',{x1:pl,x2:W-pad.r,y1:Y(mn),y2:Y(mn),stroke:css('--axis'),'stroke-width':1});
+  const xn=Math.min(4,rows.length); for(let k=0;k<xn;k++){ const i=Math.round(k*(rows.length-1)/(xn-1||1));
+    const tx=add(svg,'text',{x:X(i),y:H-6,'text-anchor':k===0?'start':(k===xn-1?'end':'middle'),'class':'tick'});
+    tx.textContent=fD(rows[i].d).slice(2); }
+  (cfg.refLines||[]).forEach(r=>{ add(svg,'line',{x1:pl,x2:W-pad.r,y1:Y(r.v),y2:Y(r.v),stroke:css('--axis'),'stroke-width':1});
+    const tx=add(svg,'text',{x:pl+4,y:Y(r.v)-4,'text-anchor':'start','class':'tick'}); tx.textContent=r.label; });
+  const surface=css('--surface-1');
+  cfg.series.forEach((s,si)=>{
+    const col=s.color;
+    if(s.type==='bar'){
+      const bw=Math.min(24,Math.max(1.5,pw/rows.length-2));
+      rows.forEach((r,i)=>{ const v=r.vals[si]; if(v==null)return;
+        const y=Y(Math.max(0,v)), y0=Y(Math.max(0,mn)); const hgt=Math.max(1,Math.abs(Y(v)-Y(Math.max(0,mn))));
+        const rr=Math.min(4,bw/2);
+        add(svg,'path',{d:'M'+(X(i)-bw/2)+' '+(y0)+' V'+(y+rr)+' Q'+(X(i)-bw/2)+' '+y+' '+(X(i)-bw/2+rr)+' '+y+' H'+(X(i)+bw/2-rr)+' Q'+(X(i)+bw/2)+' '+y+' '+(X(i)+bw/2)+' '+(y+rr)+' V'+y0+' Z',fill:col});
+      });
+    } else {
+      let dPath='',started=false;
+      rows.forEach((r,i)=>{ const v=r.vals[si]; if(v==null){started=false;return;}
+        dPath+=(started?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1)+' '; started=true; });
+      if(s.type==='area'){ let aP=''; let firstI=null,lastI=null;
+        rows.forEach((r,i)=>{const v=r.vals[si]; if(v!=null){if(firstI==null)firstI=i;lastI=i;}});
+        if(firstI!=null){ aP=dPath+'L'+X(lastI)+' '+Y(mn)+' L'+X(firstI)+' '+Y(mn)+' Z';
+          add(svg,'path',{d:aP,fill:col,opacity:.10}); } }
+      add(svg,'path',{d:dPath,fill:'none',stroke:col,'stroke-width':2,'stroke-linecap':'round','stroke-linejoin':'round'});
+      const li=rows.length-1, lv=rows[li].vals[si];
+      if(lv!=null){ add(svg,'circle',{cx:X(li),cy:Y(lv),r:4.5,fill:col,stroke:surface,'stroke-width':2}); }
+    }
+  });
+  const cross=add(svg,'line',{x1:0,x2:0,y1:pad.t,y2:pad.t+ph,stroke:css('--axis'),'stroke-width':1,opacity:0});
+  const hot=add(svg,'rect',{x:pl,y:pad.t,width:pw,height:ph,fill:'transparent'});
+  hot.style.cursor='crosshair';
+  function near(evX){ const rct=svg.getBoundingClientRect(); const rx=evX-rct.left;
+    let best=0,bd=1e9; rows.forEach((r,i)=>{const dd=Math.abs(X(i)-rx); if(dd<bd){bd=dd;best=i;}}); return best; }
+  hot.addEventListener('mousemove',e=>{ const i=near(e.clientX); cross.setAttribute('x1',X(i)); cross.setAttribute('x2',X(i)); cross.setAttribute('opacity',1);
+    let html='<div class="tt-d">'+fD(rows[i].d)+'</div>';
+    cfg.series.forEach((s,si)=>{ const v=rows[i].vals[si]; html+='<div class="row"><span class="sw" style="width:9px;height:9px;border-radius:3px;background:'+s.color+'"></span>'+s.name+'<span class="v">'+(v==null?'–':(cfg.yFmt?cfg.yFmt(v):fmtN(v)))+'</span></div>'; });
+    showTT(e.clientX,e.clientY,html); });
+  hot.addEventListener('mouseleave',()=>{cross.setAttribute('opacity',0);hideTT();});
+  host.appendChild(svg);
+  if(cfg.series.length>1&&cfg.series.length<=3&&cfg.series.every(s=>s.type!=='bar')){
+    const ys=cfg.series.map((s,si)=>{const v=rows[rows.length-1].vals[si];return v==null?null:Y(v);});
+    const ok=ys.every((y,i)=>y==null||ys.every((y2,j)=>i===j||y2==null||Math.abs(y-y2)>=13));
+    if(ok){ cfg.series.forEach((s,si)=>{ if(ys[si]==null)return;
+      const tx=document.createElementNS(NS,'text'); tx.setAttribute('x',W-pad.r); tx.setAttribute('y',ys[si]-8);
+      tx.setAttribute('text-anchor','end'); tx.setAttribute('class','dlabel'); tx.textContent=s.name;
+      svg.appendChild(tx); }); }
+  }
+}
+
+/* ---------- 本期解讀 ---------- */
+function genComment(){
+  const C=IND.composite,U=IND.unwind,E=IND.latest_extra,P=E.pctl;
+  const zoneShort={high:'去化初中期（高壓區）',mid:'去化中後期',late:'出清尾聲',done:'大致出清'}[C.zone]||C.zone_label;
+  const added=U.peak-U.baseline, gave=U.peak-U.current;
+  const s1='去槓桿壓力指數 '+fmtN(C.score,1)+'，處於'+zoneShort+'。出清進度這樣算：融資餘額從 '+fD(U.baseline_date)+' 谷底 '+fmtN(U.baseline,0)+' 億元加到 '+fD(U.peak_date)+' 峰值 '+fmtN(U.peak,0)+' 億元，共多加 '+fmtN(added,0)+' 億元槓桿；目前 '+fmtN(U.current,0)+' 億元，已回吐 '+fmtN(gave,0)+' 億元、尚餘 '+fmtN(U.excess_now,0)+' 億元未退出——出清進度 '+fmtN(gave,0)+'÷'+fmtN(added,0)+' ≈ '+(U.U*100).toFixed(0)+'%（100%＝本輪新增槓桿全數退出，非指總融資減半；基期為規則化定義的近期谷底，非特定新聞事件）。';
+  const ev=[]; const d5=E.margin_d5_pct;
+  if(d5!=null) ev.push('融資餘額近 5 日 '+(d5>0?'+':'')+fmtN(d5,1)+'%'+(d5<-1?'，降槓桿仍在進行':(d5>1?'，槓桿仍在累積、出清尚未真正開始':'，初現企穩跡象')));
+  if(P.margin_drop_ma!=null) ev.push('融資降幅代理指標處 5 年第 '+Math.round(P.margin_drop_ma)+' 百分位'+(P.margin_drop_ma>=70?'，賣壓仍強':(P.margin_drop_ma<=40?'，賣壓已明顯退坡':'，賣壓自高點回落中'))+'（注意：此為融資餘額降幅代理，非真實斷頭金額）');
+  if(P.margin_turnover_ratio!=null) ev.push('融資/成交值比處第 '+Math.round(P.margin_turnover_ratio)+' 百分位'+(P.margin_turnover_ratio<=40?'，融資盤相對容易被市場成交量消化':(P.margin_turnover_ratio>=70?'，融資盤消化天數偏長':'')));
+  if(P.rv20!=null&&P.turn_val!=null) ev.push((P.rv20>60||P.turn_val>60)?'波動率與成交熱度仍高於歷史均值，市場尚未進入風險釋放後的穩定狀態':'波動率與成交熱度已回落至歷史均值附近，市場漸趨穩定');
+  const s2=ev.join('；')+'。';
+  const miss=[];
+  if(IND.signals.s1.status!=='green') miss.push('①技術性賣壓衰竭代理指標回落');
+  if(IND.signals.s2.status!=='green') miss.push('②外部催化劑落地');
+  if(IND.signals.s3.status!=='green') miss.push('③監管干預明朗');
+  const s3=miss.length?('市場重新回歸基本面驅動之前，仍待：'+miss.join('、')+'。'):'三項關鍵訊號均已亮綠，基本面重新接手的條件漸備。';
+  const s4='註：台灣無官方逐日公開的融資整戶維持率/追繳/斷頭數據，被動賣壓子指標以「融資餘額降幅」代理，非真實強制平倉金額；請勿與韓股斷頭金額直接類比。';
+  return [['定位',s1],['證據',s2],['條件',s3],['註',s4]];
+}
+function genVerdict(){
+  const C=IND.composite,U=IND.unwind,E=IND.latest_extra,P=E.pctl||{};
+  const dp=E.margin_drop_peak&&E.margin_drop_peak[0];
+  const retreat=dp!=null&&E.margin_drop_ma!=null&&E.margin_drop_ma<dp*0.4;
+  const stable=E.margin_d5_pct!=null&&E.margin_d5_pct>-1;
+  const uPct=(U.U*100).toFixed(0);
+  let main;
+  if(C.zone==='done'){
+    main='槓桿壓力已大致釋放（指數 '+fmtN(C.score,0)+'，出清 '+uPct+'%），市場條件回到基本面驅動。';
+  } else if(C.zone==='late'){
+    main='去槓桿進入尾聲（指數 '+fmtN(C.score,0)+'，出清 '+uPct+'%）'+(retreat?'，賣壓代理指標已明顯退潮':'')+'——可以開始關注基本面接手的訊號。';
+  } else {
+    main='去槓桿走到'+(C.zone==='high'?'初中期':'中後期')+'（指數 '+fmtN(C.score,0)+'，本輪超額槓桿已出清 '+uPct+'%）：'
+      +(retreat&&stable?'最兇的融資去化大概率已經過去':'融資去化尚未衰竭')
+      +((P.margin_total||0)>=90?'，但槓桿存量仍堆在歷史頂部':'')
+      +((P.rv20||0)>=80?'、市場波動仍極端':'')
+      +'——出清沒有完成，現階段的反彈屬技術性反彈，不是底部確認。';
+  }
+  let watch='之後每天只需盯兩條線：<b>融資降幅代理指標</b>與<b>融資餘額</b>——兩條都走平之日，就是出清接近完成之時。';
+  return {main,watch};
+}
+function renderComment(){
+  const v=genVerdict();
+  $('#verdict').innerHTML='<div class="v0">一句話結論</div><div class="v1">'+v.main+'</div><div class="v2">'+v.watch+'</div>';
+  const box=$('#commBody'); box.innerHTML='';
+  genComment().forEach(([tag,txt])=>{ box.append(el('p',null,'<span class="tag">'+tag+'</span>'+txt)); });
+  $('#copyComm').onclick=()=>{ const t='【結論】'+v.main+' '+v.watch.replace(/<[^>]+>/g,'')+'\n\n'+genComment().map(x=>x[1]).join('\n'); navigator.clipboard&&navigator.clipboard.writeText(t); $('#copyComm').textContent='已複製'; setTimeout(()=>$('#copyComm').textContent='複製',1500); };
+}
+
+/* ---------- cards ---------- */
+const CARDS=[
+ {id:'m', t:'融資餘額', d:'散戶槓桿主體，全市場（TWSE上市）融資餘額。單位：億元。參考線＝回看視窗內的峰值與谷底基期。',
+  how:'這是散戶向券商借錢買股的餘額，本輪去槓桿的「本體」。看三點：<b>水位</b>——距峰值與基期兩條參考線的位置；<b>進度條</b>——本輪加的槓桿已退出幾成（100%＝這輪借的錢全數吐回）；<b>斜率</b>——曲線急跌代表主動/被動去槓桿正在發生，走平代表賣壓衰竭、進入尾聲。基期採規則化定義（峰值前一段時間內的谷底），非特定新聞事件日期，可在 compute_indicators.py 的 CONFIG 調整。',
+  series:[{name:'融資餘額',key:'margin_total',color:'--s1',type:'line'}],
+  yFmt:v=>fmtN(v,0), refs:()=>[{v:IND.unwind.peak,label:'峰值 '+fmtN(IND.unwind.peak,0)},{v:IND.unwind.baseline,label:'谷底基期'}],
+  extra:'unwind',
+  fn:()=>{const U=IND.unwind,added=U.peak-U.baseline,gave=U.peak-U.current;
+   return '本輪加槓桿：基期 '+fmtN(U.baseline,0)+' 億元（'+fD(U.baseline_date)+'）→ 峰值 '+fmtN(U.peak,0)+' 億元（'+fD(U.peak_date)+'），共 +'+fmtN(added,0)+' 億元；現 '+fmtN(U.current,0)+' 億元＝已回吐 '+fmtN(gave,0)+' 億元、尚餘 '+fmtN(U.excess_now,0)+' 億元 → 出清 <b>'+fmtN(U.U*100,0)+'%</b>（'+fmtN(gave,0)+'÷'+fmtN(added,0)+'）';}},
+ {id:'fb',t:'融資降幅代理指標（被動賣壓代理，非真實斷頭）', d:'融資餘額單日下降幅度（只取下降部分），5日移動平均。台灣無逐日公開斷頭數據，此為代理指標。',
+  how:'台灣證交所不像韓國 KOFIA 逐日公布強制平倉（斷頭）金額，故用「融資餘額單日降幅」近似衡量賣壓強度：融資餘額急降，通常反映一部分是主動減碼、一部分是追繳不足被券商處分——但無法精確拆分兩者比例。上圖長條飆高＝當日降幅顯著；<b>連續數日回落</b>＝賣壓可能衰竭，是訊號①的判定依據之一。請勿將此數值直接與韓股「斷頭金額」比較，兩者口徑完全不同。',
+  series:[{name:'融資降幅%(單日)',key:'margin_drop_pct',color:'--s1',type:'bar'}], yFmt:v=>fmtN(v,2)+'%', zero:true,
+  panel2:{t:'融資降幅5日均 %',series:[{name:'降幅5日均',key:'margin_drop_ma',color:'--s6',type:'line'}],yFmt:v=>fmtN(v,2)+'%'}},
+ {id:'kx',t:'加權指數與市場應激', d:'指數走勢＋20日年化已實現波動率（無官方VIX類指數，故以此替代）。',
+  how:'判讀基準很直接：<b>波動率回到歷史均值（百分位 50）以下之前，市場仍處「主動降槓桿」階段</b>，其間的反彈都屬技術性，不是風險充分釋放後的穩定狀態。指數本身只是背景板——去槓桿分析裡，波動率何時「熄火」比指數點位更重要。',
+  series:[{name:'加權指數',key:'taiex_idx',color:'--s1',type:'line'}], yFmt:v=>fmtN(v,0),
+  panel2:{t:'20日年化波動率 %',series:[{name:'已實現波動率',key:'rv20',color:'--s5',type:'line'}],yFmt:v=>fmtN(v,0)+'%'}},
+ {id:'tv',t:'成交值與融資消化天數', d:'成交活躍度回到歷史均值之前，代表籌碼仍在激烈換手、降槓桿仍在進行。',
+  how:'成交值居高＝籌碼仍在激烈換手、多空對決未分勝負；<b>回落至均值</b>＝出清接近完成的佐證之一。下方「消化天數」＝融資餘額(元) ÷ 日成交值(元)：若融資盤被迫全數了結，市場需要幾天成交量才吞得下——<b>越低越健康</b>，急跌行情中它反而下降（分母放大），是賣壓被市場吸收的跡象。',
+  series:[{name:'成交值(億元)',key:'turn_val',color:'--s1',type:'bar'}], yFmt:v=>fmtN(v,0), zero:true,
+  panel2:{t:'融資餘額／日成交值（天）',series:[{name:'消化天數',key:'margin_turnover_ratio',color:'--s2',type:'line'}],yFmt:v=>fmtN(v,2)}},
+];
+
+function cardEl(c){
+  const d=el('div','card'); d.id='card-'+c.id;
+  const hd=el('div','hd'); const hl=el('div');
+  hl.append(el('h3',null,c.t), el('div','desc',c.d));
+  if(c.how){ const dt=el('details','how'); dt.innerHTML='<summary>怎麼看這張圖</summary><div class="hb">'+c.how+'</div>'; hl.append(dt); }
+  hd.append(hl, el('div','spacer'));
+  const tb=el('button','ghost','表格'); tb.onclick=()=>{c.showTable=!c.showTable; tb.textContent=c.showTable?'圖表':'表格'; renderCard(c);};
+  hd.append(tb); d.append(hd);
+  const body=el('div'); body.className='body'; d.append(body);
+  if(c.extra==='unwind'){ const u=el('div','unwind');
+    u.innerHTML='<div class="bar"><div class="fill" style="width:'+(IND.unwind.U*100).toFixed(0)+'%"></div></div><div class="cap"><span>出清進度 '+(IND.unwind.U*100).toFixed(0)+'%</span><span>剩餘超額 '+fmtN(IND.unwind.excess_now,0)+' 億元</span></div>';
+    d.append(u); }
+  const lg=el('div','legend'); d.append(lg);
+  const fn=el('div','fn'); d.append(fn);
+  return d;
+}
+function renderCard(c){
+  const card=$('#card-'+c.id), body=card.querySelector('.body'), lg=card.querySelector('.legend'), fn=card.querySelector('.fn');
+  body.innerHTML='';
+  const mkSeries=arr=>arr.map(s=>({...s,color:css(s.color)}));
+  if(c.showTable){
+    const [i0,i1]=sliceIdx(); const keys=[...c.series.map(s=>s.key),...(c.panel2?c.panel2.series.map(s=>s.key):[])];
+    const names=[...c.series.map(s=>s.name),...(c.panel2?c.panel2.series.map(s=>s.name):[])];
+    let h='<div class="tblwrap"><table class="tv"><thead><tr><th>日期</th>'+names.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>';
+    for(let i=i1-1;i>=i0;i--){ h+='<tr><td>'+fD(D[i])+'</td>'+keys.map(k=>'<td>'+(S[k][i]==null?'–':fmtN(S[k][i],2))+'</td>').join('')+'</tr>'; }
+    body.innerHTML=h+'</tbody></table></div>'; lg.innerHTML='';
+  } else {
+    const h1=el('div'); body.append(h1);
+    chart(h1,{series:mkSeries(c.series),yFmt:c.yFmt,refLines:c.refs?c.refs():null,zero:c.zero,h:c.panel2?190:230});
+    if(c.panel2){ body.append(el('div','desc',c.panel2.t));
+      const h2=el('div'); body.append(h2);
+      chart(h2,{series:mkSeries(c.panel2.series),yFmt:c.panel2.yFmt,h:120}); }
+    const allS=[...c.series,...(c.panel2?c.panel2.series:[])];
+    lg.innerHTML=allS.length>1?allS.map(s=>'<span class="key"><span class="'+(s.type==='bar'?'sw':'ln')+'" style="background:'+css(s.color)+'"></span>'+s.name+'</span>').join(''):'';
+  }
+  fn.innerHTML=c.fn?c.fn():'';
+}
+
+/* 槓桿ETF觀察卡（pending，元大台灣50正2 00631L） */
+function etfCard(){
+  const d=el('div','card'); d.id='card-etf';
+  d.append(el('h3',null,'槓桿ETF觀察（元大台灣50正2 00631L）'));
+  d.append(el('div','desc','00631L 是台股規模最大、最具代表性的單一大盤兩倍槓桿ETF，可作為散戶槓桿情緒的輔助觀察指標。'));
+  const dt=el('details','how'); dt.innerHTML='<summary>怎麼看這張圖</summary><div class="hb">與韓國「單股2倍ETF」不同，00631L 追蹤的是台灣加權指數整體（非個股），機制上不太可能主導個股定價，但其融資餘額與成交量的變化，仍可作為散戶槓桿情緒的輔助觀察指標。fetch_data.py 已包含 00631L 融資餘額與價格的抓取邏輯（見 data/tw_etf_00631L.json），累積足夠時序後即可啟用本卡片並接入綜合指數。</div>'; d.append(dt);
+  d.append(el('div','pending','⏳ 此模組待累積時序數據後啟用（fetch_data.py 已產出 data/tw_etf_00631L.json，尚未接入 compute_indicators.py 的綜合指數計算）。目前綜合指數未計入ETF分項。'));
+  return d;
+}
+/* composite parts card */
+function partsCard(){
+  const d=el('div','card'); d.append(el('h3',null,'壓力指數分解（各分項貢獻）'));
+  d.append(el('div','desc','分項貢獻＝權重 × 標準化讀數；合計＝'+fmtN(IND.composite.score,1)+'。'));
+  const dt=el('details','how'); dt.innerHTML='<summary>怎麼看這張圖</summary><div class="hb">回答「壓力主要來自哪裡」：條越長＝該分項越接近其權重上限。寫解讀時點名最長的兩三條——是<b>水位</b>還太高（槓桿存量問題）、<b>出清進度</b>太慢（時間問題）、還是<b>賣壓代理／市場應激</b>正猛（當下強度問題）——敘事重點完全不同。</div>'; d.append(dt);
+  const box=el('div','parts');
+  const parts=IND.composite.parts; const maxW=Math.max(...Object.values(IND.config.weights),1);
+  Object.entries(parts).forEach(([k,v])=>{
+    const r=el('div','row');
+    r.innerHTML='<div class="nm">'+k+'</div><div class="bar"><div class="bf" style="width:'+(100*v/maxW).toFixed(1)+'%"></div></div><div class="pv">'+fmtN(v,1)+' 分</div>';
+    box.append(r); });
+  d.append(box);
+  return d;
+}
+
+/* ---------- filters ---------- */
+Object.keys(RANGES).forEach(k=>{ const b=el('button',null,k); if(RANGES[k]===rangeN)b.classList.add('on');
+  b.onclick=()=>{rangeN=RANGES[k]; document.querySelectorAll('.filters button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); renderAll();};
+  $('#filters').append(b); });
+
+/* ---------- method ---------- */
+function method(){
+  const w=IND.config.weights;
+  $('#methodBody').innerHTML=
+  '<h4>綜合壓力指數（0-100）</h4>三大維度七分項：槓桿水位（融資餘額5年百分位 '+w.lvl_margin_pctl+'、融資/成交值百分位 '+w.lvl_turnover_pctl+'）＋出清進度（未出清比例 '+w.unwind_remaining+'、融資5日動能 '+w.momentum+'）＋被動賣壓代理（融資降幅百分位 '+w.forced_proxy_pctl+'）＋市場應激（波動率 '+w.vol_pctl+'、成交熱度 '+w.turnover_pctl+'）。'+
+  '<h4>出清進度 U</h4><code>U =（峰值 − 目前）/（峰值 − 基期）</code>；峰值＝回看視窗內的融資餘額最高點，基期＝峰值之前一段視窗內的谷底（規則化定義，可於 compute_indicators.py 的 CONFIG 調整 peak_lookback_days / baseline_lookback_days）。U=100% 表示本輪新增槓桿全數退出。'+
+  '<h4>數據源與時滯</h4>FinMind 開放 API（<code>TaiwanStockTotalMarginPurchaseShortSale</code> 全市場融資融券餘額、<code>TaiwanStockPrice(TAIEX)</code> 加權指數日線），資料原始來源為證交所公開資訊。波動率以20日已實現波動率年化替代官方波動率指數。'+
+  '<h4>與韓版方法論的差異（誠實揭露）</h4>台灣沒有「融資整戶維持率」「追繳」「斷頭」的逐日公開數據，故被動賣壓子指標以「融資餘額降幅」代理，<b>並非真實強制平倉金額</b>；也沒有「投資人預託金」逐日數據，故不設融資/預託金比子指標。目前僅涵蓋 TWSE 上市（加權指數）集中市場，不含 TPEx 上櫃市場。'+
+  '<h4>訊號判定</h4>①技術性賣壓衰竭代理＝融資降幅5日均百分位&lt;50 且 融資5日跌幅&lt;1%；②③為人工旗標，請依新聞與金管會/證交所公告人工更新（見 compute_indicators.py 的 CONFIG.signal2_manual / signal3_manual）。';
+  $('#foot').innerHTML='指標定義與權重可在 compute_indicators.py 的 CONFIG 調整；本儀表板僅涵蓋場內融資融券，不含股票質押、複委託、海外券商槓桿與場外配資。融資餘額資料為 T+1 公布。本頁面不構成投資建議。';
+}
+
+/* ---------- render all ---------- */
+function renderAll(){
+  gauge(IND.composite.score, IND.composite.zone);
+  tiles(); chips(); renderComment();
+  const cardsBox=$('#cards');
+  if(!cardsBox.dataset.built){ CARDS.forEach(c=>cardsBox.append(cardEl(c))); cardsBox.append(etfCard(),partsCard()); cardsBox.dataset.built=1; }
+  CARDS.forEach(renderCard);
+  method();
+}
+renderAll();
+let rto; addEventListener('resize',()=>{clearTimeout(rto);rto=setTimeout(renderAll,150);});
+})();
+</script>
+</body>
+</html>
