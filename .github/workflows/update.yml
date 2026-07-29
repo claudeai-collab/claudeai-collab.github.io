@@ -1,0 +1,38 @@
+name: 每日更新台股去槓桿儀表板
+
+on:
+  schedule:
+    - cron: "30 10 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 抓取數據
+        run: python3 fetch_data.py
+
+      - name: 計算指標
+        run: python3 compute_indicators.py data/tw_leverage_bulk.json
+
+      - name: 組裝儀表板
+        run: |
+          python3 build_dashboard.py
+          cp out/tw_deleverage_dashboard.html index.html
+
+      - name: 提交
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --staged --quiet && echo "無變動" || git commit -m "更新台股去槓桿儀表板 $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push
